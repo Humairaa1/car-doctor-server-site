@@ -28,6 +28,34 @@ const client = new MongoClient(uri, {
   }
 });
 
+
+
+
+
+//middleware
+const logger = (req, res, next)=>{
+  console.log('log : Info ', req.method, req.url);
+  next();
+}
+
+const verifyToken = (req, res, next)=>{
+  const token = req?.cookies?.token;
+  // console.log('token in a middleware', token);
+  if(!token){
+    return res.status(401).send({massage : 'Unauthorize access'})
+  }
+  jwt.verify(token, process.env.ACCESS_TOkEN, (err,decoded)=>{
+    if(err){
+      return res.status(401).send({massage : 'Unauthorize access'})
+    }
+    req.user=decoded
+    next();
+  })
+}
+
+
+
+
 const servicesCollection = client.db("carDoctorDB").collection("services");
 const checkOutCollection = client.db("carDoctorDB").collection("checkOut");
 
@@ -49,6 +77,12 @@ async function run() {
         // sameSite:'none'
       })
       .send({success : true})
+    })
+
+    app.post("/logout", async(req,res)=>{
+      const user =req.body;
+
+      res.clearCookie('token',{maxAge:0}).send({success : true})
     })
 
 
@@ -73,9 +107,12 @@ async function run() {
 
     //for check out collection
 
-    app.get("/checkOut", async (req, res) => {
+    app.get("/checkOut",logger,verifyToken, async (req, res) => {
       // console.log(req.query.email)
-      console.log('token',req.cookies.token)
+      // console.log('token owner',req.user)
+      if(req.user.email !== req.query.email){
+        return res.status(403).send({massage : 'forbidden access'})
+      }
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email }
